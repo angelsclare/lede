@@ -1,10 +1,11 @@
-name: OpenWrt-CI
+name: OpenWrt-CI-HC5861
+
 on:
   schedule:
     - cron: 0 20 * * *
   push:
     branches:
-      - master
+      - main
   workflow_dispatch:
 
 permissions:
@@ -76,9 +77,11 @@ jobs:
         run: |
           mkdir -p ./artifact/package
           mkdir -p ./artifact/buildinfo
-          rm -rf $(find ./bin/targets/ -type d -name "packages")
-          cp -rf $(find ./bin/packages/ -type f -name "*.ipk") ./artifact/package/
-          cp -rf ./bin/targets/ramips/mt7620 ./artifact/firmware
+          mkdir -p ./artifact/firmware
+          rm -rf $(find ./bin/targets/ -type d -name "packages" || true)
+          find ./bin/packages/ -type f -name "*.ipk" -exec cp -f {} ./artifact/package/ \; || true
+          find ./bin/targets/ -type f \( -name "*.buildinfo" -o -name "*.manifest" \) -exec cp -f {} ./artifact/buildinfo/ \; || true
+          cp -rf ./bin/targets/ramips/mt7620 ./artifact/firmware || true
 
       - name: Upload buildinfo artifact
         uses: actions/upload-artifact@v4
