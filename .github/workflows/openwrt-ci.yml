@@ -47,19 +47,20 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Generate configuration file for HC5861 + SSR + USB + 中文 + zram
+      - name: Generate configuration file for HC5861 (精简+中文/英文)
         run: |
           rm -f .config
+          # 目标设备
           echo "CONFIG_TARGET_ramips=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7620=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7620_DEVICE_hiwifi_hc5861=y" >> .config
 
-          # === SSR Plus 核心组件 ===
+          # === SSR Plus + Xray ===
           echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_V2ray=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Trojan=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_V2ray=n" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Trojan=n" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=n" >> .config
 
           # === 中文界面 ===
           echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
@@ -75,15 +76,6 @@ jobs:
           echo "CONFIG_PACKAGE_ppp=y" >> .config
           echo "CONFIG_PACKAGE_ppp-mod-pppoe=y" >> .config
 
-          # === USB 驱动 + 外接存储支持 ===
-          echo "CONFIG_PACKAGE_kmod-usb-core=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-ohci=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb2=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-storage=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-fs-ext4=y" >> .config
-          echo "CONFIG_PACKAGE_block-mount=y" >> .config
-          echo "CONFIG_PACKAGE_mount-utils=y" >> .config
-
           # === zram-swap (减少闪存压力) ===
           echo "CONFIG_PACKAGE_zram-swap=y" >> .config
           echo "CONFIG_KERNEL_ZSWAP_COMPRESSOR_DEFAULT=lz4" >> .config
@@ -93,7 +85,28 @@ jobs:
           echo "CONFIG_BUSYBOX_CUSTOM=y" >> .config
           echo "CONFIG_BUSYBOX_CONFIG_FEATURE_IPV6=y" >> .config
 
+          # 去掉 USB 支持，节省空间
+          echo "CONFIG_PACKAGE_kmod-usb-core=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-ohci=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb2=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-storage=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-fs-ext4=n" >> .config
+          echo "CONFIG_PACKAGE_block-mount=n" >> .config
+          echo "CONFIG_PACKAGE_mount-utils=n" >> .config
+
+          # 压缩 rootfs，去掉调试符号
+          echo "CONFIG_KERNEL_DEBUG_INFO=n" >> .config
+          echo "CONFIG_KERNEL_KALLSYMS=n" >> .config
+          echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+
           make defconfig
+
+      - name: Remove unused LuCI language packs
+        run: |
+          # 删除除 zh-cn 和 en 外的所有语言包
+          find feeds/luci/modules/luci-base/po/ -maxdepth 1 -type d ! -name "zh-cn" ! -name "en" ! -name "po" -exec rm -rf {} +
+          find feeds/luci/applications/ -type d -path "*/po/*" ! -name "zh-cn" ! -name "en" -exec rm -rf {} +
 
       - name: Download packages
         run: make download -j$(nproc)
