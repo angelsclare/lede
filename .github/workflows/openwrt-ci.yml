@@ -42,23 +42,43 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/fw876/helloworld.git package/helloworld
 
-      - name: Enable helloworld feed in feeds.conf.default
-        run: |
-          sed -i 's/^#src-git helloworld/src-git helloworld/' ./feeds.conf.default || echo "src-git helloworld https://github.com/fw876/helloworld.git" >> feeds.conf.default
-
       - name: Update and install feeds
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Generate configuration file for HC5861 and SSR
+      - name: Generate configuration file for HC5861 + SSR
         run: |
-          make defconfig
+          rm -f .config
           echo "CONFIG_TARGET_ramips=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7620=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7620_DEVICE_hiwifi_hc5861=y" >> .config
+
+          # SSR Plus 核心组件
           echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
-          echo "CONFIG_PACKAGE_helloworld=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_V2ray=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Trojan=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y" >> .config
+
+          # IPv6 支持
+          echo "CONFIG_PACKAGE_ipv6helper=y" >> .config
+          echo "CONFIG_PACKAGE_luci-proto-ipv6=y" >> .config
+          echo "CONFIG_PACKAGE_odhcp6c=y" >> .config
+          echo "CONFIG_PACKAGE_odhcpd-ipv6only=y" >> .config
+
+          # PPPoE 支持
+          echo "CONFIG_PACKAGE_ppp=y" >> .config
+          echo "CONFIG_PACKAGE_ppp-mod-pppoe=y" >> .config
+
+          # 空间优化：去掉调试、文档、IPv6 压缩调优
+          echo "CONFIG_STRIP_KERNEL_EXPORTS=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-core=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-ohci=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb2=n" >> .config
+          echo "CONFIG_BUSYBOX_CUSTOM=y" >> .config
+          echo "CONFIG_BUSYBOX_CONFIG_FEATURE_IPV6=y" >> .config
+
           make defconfig
 
       - name: Download packages
@@ -73,30 +93,21 @@ jobs:
           du -h --max-depth=1 ./build_dir
           du -h --max-depth=1 ./bin
 
-      - name: Prepare artifact
+      - name: Prepare artifacts (official tar style)
         run: |
+          mkdir -p ./artifact
+          tar -czf ./artifact/firmware.tar.gz -C ./bin/targets .
           mkdir -p ./artifact/package
-          mkdir -p ./artifact/buildinfo
-          mkdir -p ./artifact/firmware
-          rm -rf $(find ./bin/targets/ -type d -name "packages" || true)
           find ./bin/packages/ -type f -name "*.ipk" -exec cp -f {} ./artifact/package/ \; || true
-          find ./bin/targets/ -type f \( -name "*.buildinfo" -o -name "*.manifest" \) -exec cp -f {} ./artifact/buildinfo/ \; || true
-          cp -rf ./bin/targets/ramips/mt7620 ./artifact/firmware || true
 
-      - name: Upload buildinfo artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: OpenWrt_buildinfo
-          path: ./artifact/buildinfo/
-
-      - name: Upload package artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: OpenWrt_package
-          path: ./artifact/package/
-
-      - name: Upload firmware artifact
+      - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
           name: OpenWrt_firmware
-          path: ./artifact/firmware/
+          path: ./artifact/firmware.tar.gz
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenWrt_packages
+          path: ./artifact/package/
