@@ -2,7 +2,7 @@ name: OpenWrt-CI-HC5861
 
 on:
   schedule:
-    - cron: 0 20 * * *
+    - cron: '0 20 * * *'
   push:
     branches:
       - master
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Space cleanup and Initialization environment
+      - name: Cleanup and setup environment
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
@@ -47,15 +47,13 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Generate configuration file for HC5861 (Passwall2 + 极限精简)
+      - name: Generate minimal config for HC5861 with Passwall2 + SingBox + Chinese UI
         run: |
           rm -f .config
-          # 目标设备
           echo "CONFIG_TARGET_ramips=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7620=y" >> .config
           echo "CONFIG_TARGET_ramips_mt7620_DEVICE_hiwifi_hc5861=y" >> .config
 
-          # Passwall2 + SingBox 内核
           echo "CONFIG_PACKAGE_luci-app-passwall2=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_SingBox=y" >> .config
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Xray=n" >> .config
@@ -64,23 +62,19 @@ jobs:
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_Shadowsocks_Libev_Client=n" >> .config
           echo "CONFIG_PACKAGE_luci-app-passwall2_INCLUDE_ShadowsocksR_Libev_Client=n" >> .config
 
-          # 中文界面（去英文）
           echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-passwall2-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-base-en=n" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-passwall2-en=n" >> .config
 
-          # 去 IPv6 支持
           echo "CONFIG_PACKAGE_ipv6helper=n" >> .config
           echo "CONFIG_PACKAGE_luci-proto-ipv6=n" >> .config
           echo "CONFIG_PACKAGE_odhcp6c=n" >> .config
           echo "CONFIG_PACKAGE_odhcpd-ipv6only=n" >> .config
 
-          # 去 PPPoE 支持
           echo "CONFIG_PACKAGE_ppp=n" >> .config
           echo "CONFIG_PACKAGE_ppp-mod-pppoe=n" >> .config
 
-          # 去 USB/ext4 支持
           echo "CONFIG_PACKAGE_kmod-usb-core=n" >> .config
           echo "CONFIG_PACKAGE_kmod-usb-ohci=n" >> .config
           echo "CONFIG_PACKAGE_kmod-usb2=n" >> .config
@@ -89,53 +83,52 @@ jobs:
           echo "CONFIG_PACKAGE_block-mount=n" >> .config
           echo "CONFIG_PACKAGE_mount-utils=n" >> .config
 
-          # zram-swap 减少闪存压力
           echo "CONFIG_PACKAGE_zram-swap=y" >> .config
           echo "CONFIG_KERNEL_ZSWAP_COMPRESSOR_DEFAULT=lz4" >> .config
 
-          # 空间优化
           echo "CONFIG_STRIP_KERNEL_EXPORTS=y" >> .config
-          echo "CONFIG_BUSYBOX_CUSTOM=y" >> .config
-          echo "CONFIG_BUSYBOX_CONFIG_FEATURE_IPV6=y" >> .config
-
-          # 压缩 rootfs，去掉调试符号
           echo "CONFIG_KERNEL_DEBUG_INFO=n" >> .config
           echo "CONFIG_KERNEL_KALLSYMS=n" >> .config
+
           echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
           echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_IMAGES=squashfs" >> .config
+
+          echo "CONFIG_BUSYBOX_CUSTOM=y" >> .config
+          echo "CONFIG_BUSYBOX_CONFIG_FEATURE_IPV6=n" >> .config
 
           make defconfig
 
-      - name: Remove unused LuCI language packs
+      - name: Remove unused LuCI language packs except zh-cn
         run: |
           find feeds/luci/modules/luci-base/po/ -maxdepth 1 -type d ! -name "zh-cn" ! -name "po" -exec rm -rf {} +
           find feeds/luci/applications/ -type d -path "*/po/*" ! -name "zh-cn" -exec rm -rf {} +
 
-      - name: Download packages
+      - name: Download all required packages
         run: make download -j$(nproc)
 
       - name: Compile firmware
         run: |
           make -j$(nproc) || make -j1 V=s
 
-      - name: Compress SingBox binary with UPX
+      - name: Compress SingBox binary with UPX (max compression)
         run: |
-          find ./build_dir/ -type f -name "sing-box" -exec upx -9 {} \; || echo "No sing-box binary found"
+          find ./build_dir/ -type f -name "sing-box" -exec upx --best --lzma {} \; || echo "No sing-box binary found"
 
-      - name: Prepare artifacts (official tar style)
+      - name: Prepare artifacts (firmware + packages)
         run: |
           mkdir -p ./artifact
           tar -czf ./artifact/firmware.tar.gz -C ./bin/targets .
           mkdir -p ./artifact/package
           find ./bin/packages/ -type f -name "*.ipk" -exec cp -f {} ./artifact/package/ \; || true
 
-      - name: Upload firmware
+      - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: OpenWrt_firmware
           path: ./artifact/firmware.tar.gz
 
-      - name: Upload packages
+      - name: Upload packages artifact
         uses: actions/upload-artifact@v4
         with:
           name: OpenWrt_packages
