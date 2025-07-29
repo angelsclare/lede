@@ -1,4 +1,4 @@
-name: Build OpenWrt Firmware for HiWiFi HC5861 Minimal SSR Client
+name: Build OpenWrt Firmware for HiWiFi HC5861 with SSR Plus
 
 on:
   schedule:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build_openwrt:
-    name: Build OpenWrt Firmware for HiWiFi HC5861 Minimal SSR Client
+    name: Build OpenWrt Firmware for HiWiFi HC5861 Minimal SSR Plus
     runs-on: ubuntu-22.04
 
     steps:
@@ -33,51 +33,54 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Clone helloworld package (luci-app-ssr-plus)
+        run: |
+          git clone --depth=1 https://github.com/fw876/helloworld.git package/helloworld
+
       - name: Update and install feeds
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Configure build for HC5861 minimal SSR client
+      - name: Configure build for HC5861 with SSR Plus
         run: |
-          cat > .config <<EOF
-CONFIG_TARGET_ramips=y
-CONFIG_TARGET_ramips_mt7620=y
-CONFIG_TARGET_ramips_mt7620_DEVICE_hiwifi_hc5861=y
+          echo "CONFIG_TARGET_ramips=y" > .config
+          echo "CONFIG_TARGET_ramips_mt7620=y" >> .config
+          echo "CONFIG_TARGET_ramips_mt7620_DEVICE_hiwifi_hc5861=y" >> .config
+      
+          echo "CONFIG_PACKAGE_luci=y" >> .config
+          echo "CONFIG_PACKAGE_luci-base=y" >> .config
+          echo "CONFIG_PACKAGE_luci-ssl=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+      
+          echo "CONFIG_PACKAGE_shadowsocks-libev-ss-local=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-ssr-plus=y" >> .config
+      
+          echo "CONFIG_PACKAGE_ipv6helper=n" >> .config
+          echo "CONFIG_PACKAGE_luci-proto-ipv6=n" >> .config
+          echo "CONFIG_PACKAGE_odhcp6c=n" >> .config
+          echo "CONFIG_PACKAGE_odhcpd-ipv6only=n" >> .config
+      
+          echo "CONFIG_PACKAGE_kmod-usb-core=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-ohci=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb2=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-storage=n" >> .config
+          echo "CONFIG_PACKAGE_kmod-fs-ext4=n" >> .config
+          echo "CONFIG_PACKAGE_block-mount=n" >> .config
+          echo "CONFIG_PACKAGE_mount-utils=n" >> .config
+      
+          echo "CONFIG_KERNEL_DEBUG_INFO=n" >> .config
+          echo "CONFIG_STRIP_KERNEL_EXPORTS=y" >> .config
+      
+          echo "CONFIG_TARGET_IMAGES_GZIP=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_IMAGES=squashfs" >> .config
 
-CONFIG_PACKAGE_luci=y
-CONFIG_PACKAGE_luci-base=y
-CONFIG_PACKAGE_luci-ssl=y
-CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
-
-CONFIG_PACKAGE_shadowsocks-libev-ss-local=y
-CONFIG_PACKAGE_luci-app-simple-ssr=y
-
-CONFIG_PACKAGE_ipv6helper=n
-CONFIG_PACKAGE_luci-proto-ipv6=n
-CONFIG_PACKAGE_odhcp6c=n
-CONFIG_PACKAGE_odhcpd-ipv6only=n
-
-CONFIG_PACKAGE_kmod-usb-core=n
-CONFIG_PACKAGE_kmod-usb-ohci=n
-CONFIG_PACKAGE_kmod-usb2=n
-CONFIG_PACKAGE_kmod-usb-storage=n
-CONFIG_PACKAGE_kmod-fs-ext4=n
-CONFIG_PACKAGE_block-mount=n
-CONFIG_PACKAGE_mount-utils=n
-
-CONFIG_KERNEL_DEBUG_INFO=n
-CONFIG_STRIP_KERNEL_EXPORTS=y
-
-CONFIG_TARGET_IMAGES_GZIP=y
-CONFIG_TARGET_ROOTFS_SQUASHFS=y
-CONFIG_TARGET_ROOTFS_IMAGES=squashfs
-
-CONFIG_BUSYBOX_CUSTOM=y
-CONFIG_BUSYBOX_CONFIG_FEATURE_IPV6=n
-
-EOF
+          echo "CONFIG_BUSYBOX_CUSTOM=y" >> .config
+          echo "CONFIG_BUSYBOX_CONFIG_FEATURE_IPV6=n" >> .config
+      
           make defconfig
+
 
       - name: Remove unnecessary language packs to save space
         run: |
